@@ -1,6 +1,7 @@
 //jshint esversion:6
 
 const express = require("express");
+const mongoose = require('mongoose');
 const ejs = require("ejs");
 const path = require("path");
 var _ = require("lodash");
@@ -20,17 +21,35 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true })); //Used to parse JSON bodies
 app.use(express.static("public"));
 
-// global variables
-const posts = [];
-const postHrefs = [];
+// connect to mongoose
+mongoose.connect('mongodb://localhost:27017/blogDB', {useNewUrlParser: true, useUnifiedTopology: true});
+const db = mongoose.connection;
+// blog schema
+const blogSchema = new mongoose.Schema({
+  title: String,
+  content: String
+});
+const Blog = mongoose.model('blog',blogSchema);
 
 // home route
 app.get("/", (req, res) => {
-  console.log(postHrefs);
-  res.render("home", {
-    homeStartingContent: homeStartingContent,
-    posts: posts,
-    postHrefs: postHrefs
+  Blog.find({},(err, docs)=>{
+    if(err){
+      console.log(err);
+    }else{
+      // docs.forEach(doc=>{
+      //   posts.push({
+      //     title: doc.title,
+      //     body: doc.content
+      //   });
+      //   postHrefs.push('/posts/' +  _.kebabCase(req.body.newBlogTitle));
+      // });
+      res.render("home", {
+        homeStartingContent: homeStartingContent,
+        posts: docs
+        // postHrefs: postHrefs
+      });
+    }
   });
 });
 
@@ -50,29 +69,30 @@ app.get("/compose", (req, res) => {
 });
 
 app.post("/compose", (req, res) => {
-  posts.push({
+  const newBlog = new Blog({
     title: req.body.newBlogTitle,
-    body: req.body.newBlogContent,
+    content: req.body.newBlogContent
   });
-  // update hrefs
-  postHrefs.push('/posts/' +  _.kebabCase(req.body.newBlogTitle));
-  res.redirect("/");
+  newBlog.save().then(()=>{
+    res.redirect("/");
+  });
 });
 
 // post route
 app.get("/posts/:postId", (req, res) => {
-  // console.log(req.params.postId);
-  const isMatch = posts.find(
-    ({ title }) => _.lowerCase(title) === _.lowerCase(req.params.postId)
-  );
-  if (isMatch) {
-    res.render("post", {
-      homeStartingContent: "",
-      posts: [isMatch]
-    });
-  } else {
-    console.log("Cannot find this post!");
-  }
+  // const isMatch = posts.find(
+  //   ({ title }) => _.lowerCase(title) === _.lowerCase(req.params.postId)
+  // );
+  Blog.findOne({_id: req.params.postId}, (err, doc)=>{
+    if(err){
+      console.log("Cannot find this post!");
+    }else{
+      res.render("post", {
+        homeStartingContent: "",
+        posts: [doc]
+      });
+    }
+  });
 });
 
 app.listen(3000, function () {
